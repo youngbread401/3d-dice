@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Real-Time Grid</title>
+    <style>
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(10, 50px);
+            gap: 2px;
+            margin: 20px;
+        }
+
+        .cell {
+            width: 50px;
+            height: 50px;
+            border: 1px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .token {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: red;
+        }
+
+        #status {
+            margin: 10px;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="status">Connecting...</div>
+    <div id="grid"></div>
+
+    <script>
+        let ws;
+        const status = document.getElementById('status');
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}`;
+            
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                status.textContent = 'Connected';
+                status.style.color = 'green';
+            };
+
+            ws.onclose = () => {
+                status.textContent = 'Disconnected - Reconnecting...';
+                status.style.color = 'red';
+                setTimeout(connectWebSocket, 1000);
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                const cell = document.querySelector(`.cell[data-row="${data.row}"][data-col="${data.col}"]`);
+                if (cell) {
+                    if (data.remove) {
+                        cell.innerHTML = '';
+                    } else {
+                        const token = document.createElement('div');
+                        token.className = 'token';
+                        cell.innerHTML = '';
+                        cell.appendChild(token);
+                    }
+                }
+            };
+        }
+
+        function handleCellClick(event) {
+            const cell = event.target.closest('.cell');
+            if (!cell) return;
+
+            const hasToken = cell.querySelector('.token');
+            const data = {
+                row: cell.dataset.row,
+                col: cell.dataset.col,
+                remove: hasToken ? true : false
+            };
+
+            // Send to server immediately
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(data));
+            } else {
+                status.textContent = 'Not connected! Please refresh the page.';
+                status.style.color = 'red';
+            }
+        }
+
+        // Create grid
+        const grid = document.getElementById('grid');
+        for (let row = 0; row < 10; row++) {
+            for (let col = 0; col < 10; col++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.row = row;
+                cell.dataset.col = col;
+                grid.appendChild(cell);
+            }
+        }
+
+        // Add click handler
+        grid.addEventListener('click', handleCellClick);
+
+        // Start WebSocket connection
+        connectWebSocket();
+    </script>
+</body>
+</html>

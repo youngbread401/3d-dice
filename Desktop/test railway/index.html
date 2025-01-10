@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Table Top Battle Grid</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- ... existing styles remain the same ... -->
+</head>
+<body>
+    <!-- ... existing HTML structure remains the same until the script tag ... -->
+
+    <script>
+        // Performance optimization: Store DOM references
+        const domElements = {
+            loginForm: document.getElementById('loginForm'),
+            userInfo: document.getElementById('userInfo'),
+            userDisplay: document.getElementById('userDisplay'),
+            username: document.getElementById('username'),
+            password: document.getElementById('password'),
+            userColor: document.getElementById('userColor'),
+            grid: document.getElementById('grid'),
+            diceResult: document.getElementById('diceResult'),
+            loadingIndicator: document.getElementById('loadingIndicator')
+        };
+
+        // User Management with error handling
+        let currentUser = null;
+        let users = {};
+        let ws;
+
+        // Initialize users from localStorage with error handling
+        try {
+            users = JSON.parse(localStorage.getItem('users') || '{}');
+        } catch (error) {
+            console.error('Error loading users:', error);
+            users = {};
+        }
+
+        // WebSocket Connection
+        function connectWebSocket() {
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${location.host}`;
+            console.log('Connecting to WebSocket:', wsUrl);
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('Connected to server');
+                if (currentUser) {
+                    ws.send(JSON.stringify({
+                        type: 'login',
+                        username: currentUser
+                    }));
+                }
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log('Received message:', data);
+                
+                switch (data.type) {
+                    case 'placeToken':
+                        updateGrid(data);
+                        break;
+                    case 'initGrid':
+                        initializeGrid(data.grid);
+                        break;
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('Disconnected from server');
+                // Attempt to reconnect after 1 second
+                setTimeout(connectWebSocket, 1000);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        function updateGrid(data) {
+            const cell = document.querySelector(`.cell[data-row="${data.row}"][data-col="${data.col}"]`);
+            if (!cell) return;
+
+            if (data.remove) {
+                cell.innerHTML = '';
+            } else {
+                const token = document.createElement('div');
+                token.className = 'token';
+                token.style.backgroundColor = data.color;
+                cell.innerHTML = '';
+                cell.appendChild(token);
+            }
+        }
+
+        function initializeGrid(gridState) {
+            // Clear existing tokens
+            document.querySelectorAll('.cell').forEach(cell => cell.innerHTML = '');
+            
+            // Place tokens from server state
+            for (const [key, value] of Object.entries(gridState)) {
+                const [row, col] = key.split('-');
+                const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+                if (cell) {
+                    const token = document.createElement('div');
+                    token.className = 'token';
+                    token.style.backgroundColor = value.color;
+                    cell.appendChild(token);
+                }
+            }
+        }
+
+        // Debounce function for performance
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Save to localStorage with error handling
+        const saveToLocalStorage = debounce((key, value) => {
+            try {
+                localStorage.setItem(key, JSON.stringify(value));
+            } catch (error) {
+                console.error('Error saving to localStorage:', error);
+                alert('Error saving data. Please try again.');
+            }
+        }, 1000);
+
+        async function login() {
+            const username = domElements.username.value.trim();
+            const password = domElements.password.value;
+            
+            if (!username || !password) {
+                alert('Please enter both username and password');
+                return;
+            }
+
+            try {
+                if (users[username] && users[username].password === password) {
+                    currentUser = username;
+                    domElements.loginForm.style.display = 'none';
+                    domElements.userInfo.style.display = 'block';
+                    domElements.userDisplay.textContent = username;
+                    domElements.userColor.value = users[username].color || 'red';
+                    localStorage.setItem('currentUser', username);
+                    
+                    // Send login to WebSocket server
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
+                            type: 'login',
+                            username: username
+                        }));
+                    }
+                } else {
+                    alert('Invalid username or password');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                alert('Error during login. Please try again.');
+            }
+        }
+
+        async function register() {
+            const username = domElements.username.value.trim();
+            const password = domElements.password.value;
+            
+            if (!username || !password) {
+                alert('Please enter both username and password');
+                return;
+            }
+            
+            if (users[username]) {
+                alert('Username already exists');
+                return;
+            }
+            
+            try {
+                users[username] = { password, color: 'red' };
+                saveToLocalStorage('users', users);
+                alert('Registration successful! Please login.');
+            } catch (error) {
+                console.error('Registration error:', error);
+                alert('Error during registration. Please try again.');
+            }
+        }
+
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('currentUser');
+            domElements.loginForm.style.display = 'block';
+            domElements.userInfo.style.display = 'none';
+            domElements.username.value = '';
+            domElements.password.value = '';
+        }
+
+        const saveColor = debounce(() => {
+            if (!currentUser) return;
+            const color = domElements.userColor.value;
+            users[currentUser].color = color;
+            saveToLocalStorage('users', users);
+        }, 500);
+
+        // Grid Creation with optimization
+        function createGrid() {
+            const fragment = document.createDocumentFragment();
+            for (let row = 0; row < 10; row++) {
+                for (let col = 0; col < 10; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    fragment.appendChild(cell);
+                }
+            }
+            domElements.grid.appendChild(fragment);
+        }
+
+        // Handle cell clicks
+        function handleCellClick(e) {
+            if (!currentUser) {
+                alert('Please login to place tokens');
+                return;
+            }
+
+            const cell = e.target.closest('.cell');
+            if (!cell) return;
+
+            const row = cell.dataset.row;
+            const col = cell.dataset.col;
+            const hasToken = cell.querySelector('.token');
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'placeToken',
+                    row: row,
+                    col: col,
+                    color: users[currentUser].color,
+                    username: currentUser,
+                    remove: hasToken ? true : false
+                }));
+            } else {
+                console.error('WebSocket is not connected');
+            }
+        }
+
+        // Optimized event handling using event delegation
+        domElements.grid.addEventListener('click', handleCellClick);
+
+        function rollMultipleDice() {
+            const count = Math.min(Math.max(1, parseInt(document.getElementById('diceCount').value) || 1), 12);
+            const sides = parseInt(document.getElementById('diceSides').value);
+            
+            try {
+                const results = Array.from({ length: count }, () => 
+                    Math.floor(Math.random() * sides) + 1
+                );
+                
+                const total = results.reduce((sum, num) => sum + num, 0);
+                
+                domElements.diceResult.innerHTML = `
+                    <div>Individual rolls: ${results.join(', ')}</div>
+                    <div class="total-sum">Total: ${total}</div>
+                `;
+            } catch (error) {
+                console.error('Dice rolling error:', error);
+                alert('Error rolling dice. Please try again.');
+            }
+        }
+
+        // Initialize the page
+        function initializePage() {
+            createGrid();
+            connectWebSocket();
+            
+            // Check for saved login
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser && users[savedUser]) {
+                currentUser = savedUser;
+                domElements.loginForm.style.display = 'none';
+                domElements.userInfo.style.display = 'block';
+                domElements.userDisplay.textContent = savedUser;
+                domElements.userColor.value = users[savedUser].color || 'red';
+            }
+
+            // Add touch event handling for mobile
+            if ('ontouchstart' in window) {
+                document.body.classList.add('touch-device');
+            }
+        }
+
+        // Start the app
+        document.addEventListener('DOMContentLoaded', initializePage);
+
+        // Service Worker registration for PWA support
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(error => {
+                    console.log('ServiceWorker registration failed:', error);
+                });
+            });
+        }
+    </script>
+</body>
+</html>
