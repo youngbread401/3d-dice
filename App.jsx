@@ -1941,8 +1941,7 @@ export default function App() {
   }, [rollType, modifier, diceQuantity]);
 
   const handleCellPress = useCallback(async (row, col) => {
-    if (isUpdating || !firebaseRef.current) return;
-    setIsUpdating(true);
+    if (!firebaseRef.current) return;
     
     try {
       const position = `${row}-${col}`;
@@ -1962,10 +1961,7 @@ export default function App() {
         };
       }
 
-      // Update local state
-      setTokens(newTokens);
-
-      // Update Firebase
+      // Update Firebase first
       await set(firebaseRef.current, {
         tokens: newTokens,
         layers,
@@ -1976,11 +1972,12 @@ export default function App() {
         lastUpdate: Date.now()
       });
 
+      // Then update local state
+      setTokens(newTokens);
+
     } catch (error) {
       console.error('Error updating tokens:', error);
       Alert.alert('Error', 'Failed to update token');
-    } finally {
-      setIsUpdating(false);
     }
   }, [tokens, currentColor, layers, initiative, inCombat, currentTurn, partyLoot]);
 
