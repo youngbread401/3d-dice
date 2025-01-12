@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "DnD Grid",
+    "slug": "dnd-grid",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1E1E1E"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
