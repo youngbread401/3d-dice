@@ -1983,24 +1983,33 @@ export default function App() {
 
   // Update the savePlayerData function
   const savePlayerData = useCallback(async (updatedCharacters) => {
-    if (!playerName || !firebaseRef.current) return;
+    if (!playerName || !roomCode) return;
     
     try {
-      const playerRef = ref(database, `rooms/${roomCode}/players/${playerName}`);
-      await set(playerRef, {
+      // Save to both the room and a separate players collection
+      const roomPlayerRef = ref(database, `rooms/${roomCode}/players/${playerName}`);
+      const globalPlayerRef = ref(database, `players/${playerName}`);
+      
+      const playerData = {
         characters: updatedCharacters,
         lastUpdate: Date.now()
-      });
+      };
+
+      // Update both locations
+      await Promise.all([
+        set(roomPlayerRef, playerData),
+        set(globalPlayerRef, playerData)
+      ]);
     } catch (error) {
       console.error('Error saving player data:', error);
       Alert.alert('Error', 'Failed to save character data');
     }
   }, [playerName, roomCode]);
 
-  // Update the connectToRoom function to load player data
+  // Update the connectToRoom function
   const connectToRoom = useCallback(async (code) => {
-    if (!code.trim()) {
-      Alert.alert("Error", "Please enter a room code");
+    if (!code.trim() || !playerName) {
+      Alert.alert("Error", "Please enter a room code and player name");
       return;
     }
 
@@ -2008,31 +2017,27 @@ export default function App() {
     setIsLoading(true);
 
     try {
+      // First try to load player's global data
+      const globalPlayerRef = ref(database, `players/${playerName}`);
+      const playerSnapshot = await get(globalPlayerRef);
+      if (playerSnapshot.exists()) {
+        const playerData = playerSnapshot.val();
+        setCharacters(playerData.characters || []);
+      }
+
       const gameRef = ref(database, `rooms/${code}`);
       firebaseRef.current = gameRef;
 
-      // First check if room exists
+      // Check if room exists
       const snapshot = await get(gameRef);
       if (!snapshot.exists()) {
-        // Initialize new room with default state
         await set(gameRef, initialGameState);
-      }
-
-      // Load player's characters if they exist
-      if (playerName) {
-        const playerRef = ref(database, `rooms/${code}/players/${playerName}`);
-        const playerSnapshot = await get(playerRef);
-        if (playerSnapshot.exists()) {
-          const playerData = playerSnapshot.val();
-          setCharacters(playerData.characters || []);
-        }
       }
 
       // Set up real-time listener
       const unsubscribe = onValue(gameRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
-          // Update all state at once to ensure consistency
           setTokens(data.tokens || {});
           setLayers(data.layers || initialGameState.layers);
           setInitiative(data.initiative || []);
@@ -2040,7 +2045,7 @@ export default function App() {
           setCurrentTurn(data.currentTurn || 0);
           setPartyLoot(data.partyLoot || initialGameState.partyLoot);
           
-          // Update characters if they exist in the room data
+          // Update characters from room data if they exist
           if (data.players && data.players[playerName]) {
             setCharacters(data.players[playerName].characters || []);
           }
