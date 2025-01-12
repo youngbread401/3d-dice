@@ -6,7 +6,8 @@ import {
   ScrollView, 
   SafeAreaView,
   Vibration,
-  Dimensions
+  Dimensions,
+  TouchableOpacity
 } from 'react-native';
 import { DiceRoller } from './components/DiceModel';
 
