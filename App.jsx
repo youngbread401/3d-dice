@@ -1981,6 +1981,23 @@ export default function App() {
     }
   }, [tokens, currentColor, layers, initiative, inCombat, currentTurn, partyLoot]);
 
+  // Update the savePlayerData function
+  const savePlayerData = useCallback(async (updatedCharacters) => {
+    if (!playerName || !firebaseRef.current) return;
+    
+    try {
+      const playerRef = ref(database, `rooms/${roomCode}/players/${playerName}`);
+      await set(playerRef, {
+        characters: updatedCharacters,
+        lastUpdate: Date.now()
+      });
+    } catch (error) {
+      console.error('Error saving player data:', error);
+      Alert.alert('Error', 'Failed to save character data');
+    }
+  }, [playerName, roomCode]);
+
+  // Update the connectToRoom function to load player data
   const connectToRoom = useCallback(async (code) => {
     if (!code.trim()) {
       Alert.alert("Error", "Please enter a room code");
@@ -2001,6 +2018,16 @@ export default function App() {
         await set(gameRef, initialGameState);
       }
 
+      // Load player's characters if they exist
+      if (playerName) {
+        const playerRef = ref(database, `rooms/${code}/players/${playerName}`);
+        const playerSnapshot = await get(playerRef);
+        if (playerSnapshot.exists()) {
+          const playerData = playerSnapshot.val();
+          setCharacters(playerData.characters || []);
+        }
+      }
+
       // Set up real-time listener
       const unsubscribe = onValue(gameRef, (snapshot) => {
         const data = snapshot.val();
@@ -2012,6 +2039,11 @@ export default function App() {
           setInCombat(data.inCombat || false);
           setCurrentTurn(data.currentTurn || 0);
           setPartyLoot(data.partyLoot || initialGameState.partyLoot);
+          
+          // Update characters if they exist in the room data
+          if (data.players && data.players[playerName]) {
+            setCharacters(data.players[playerName].characters || []);
+          }
         }
       });
 
@@ -2028,23 +2060,7 @@ export default function App() {
       setIsJoining(false);
       setIsLoading(false);
     }
-  }, []);
-
-  // Add savePlayerData function
-  const savePlayerData = async (updatedCharacters) => {
-    if (!playerName) return;
-    
-    try {
-      const playerRef = ref(database, `players/${playerName}`);
-      await set(playerRef, {
-        characters: updatedCharacters,
-        lastUpdate: Date.now()
-      });
-    } catch (error) {
-      console.error('Error saving player data:', error);
-      Alert.alert('Error', 'Failed to save character data');
-    }
-  };
+  }, [playerName]);
 
   // Effects
   useEffect(() => {
