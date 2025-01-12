@@ -447,6 +447,7 @@ const additionalStyles = StyleSheet.create({
     borderRadius: 5,
     alignItems: 'center',
     width: isSmallScreen ? '30%' : 100,
+    marginBottom: 10,
   },
   abilityLabel: {
     color: THEME.text.light,
@@ -456,6 +457,9 @@ const additionalStyles = StyleSheet.create({
     color: THEME.accent,
     fontSize: 24,
     fontWeight: 'bold',
+    width: '100%',
+    textAlign: 'center',
+    padding: 5,
   },
   abilityMod: {
     color: THEME.text.light,
@@ -964,6 +968,7 @@ const CharacterSheetModal = memo(({ visible, onClose, character, characters, onU
                       onChangeText={(text) => handleAbilityScoreChange(ability, text)}
                       keyboardType="numeric"
                       maxLength={2}
+                      selectTextOnFocus={true}
                     />
                     <Text style={additionalStyles.abilityMod}>
                       {calculateModifier(editedCharacter.abilityScores[ability]) >= 0 ? '+' : ''}
