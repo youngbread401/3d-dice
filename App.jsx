@@ -1941,7 +1941,7 @@ export default function App() {
   }, [rollType, modifier, diceQuantity]);
 
   const handleCellPress = useCallback(async (row, col) => {
-    if (isUpdating) return;
+    if (isUpdating || !firebaseRef.current) return;
     setIsUpdating(true);
     
     try {
@@ -1962,15 +1962,27 @@ export default function App() {
         };
       }
 
+      // Update local state
       setTokens(newTokens);
-      await saveGameState();
+
+      // Update Firebase
+      await set(firebaseRef.current, {
+        tokens: newTokens,
+        layers,
+        initiative,
+        inCombat,
+        currentTurn,
+        partyLoot,
+        lastUpdate: Date.now()
+      });
+
     } catch (error) {
       console.error('Error updating tokens:', error);
       Alert.alert('Error', 'Failed to update token');
     } finally {
       setIsUpdating(false);
     }
-  }, [tokens, currentColor, layers, initiative, inCombat, currentTurn, isUpdating]);
+  }, [tokens, currentColor, layers, initiative, inCombat, currentTurn, partyLoot]);
 
   const connectToRoom = useCallback(async (code) => {
     if (!code.trim()) {
@@ -1983,37 +1995,33 @@ export default function App() {
 
     try {
       const gameRef = ref(database, `rooms/${code}`);
-      const playerRef = ref(database, `players/${playerName}`);
       firebaseRef.current = gameRef;
 
-      // Load player's characters first
-      const playerSnapshot = await get(playerRef);
-      if (playerSnapshot.exists()) {
-        const playerData = playerSnapshot.val();
-        setCharacters(playerData.characters || []);
-      }
-
+      // First check if room exists
       const snapshot = await get(gameRef);
       if (!snapshot.exists()) {
+        // Initialize new room with default state
         await set(gameRef, initialGameState);
       }
 
-      setShowRoomModal(false);
-
+      // Set up real-time listener
       const unsubscribe = onValue(gameRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
+          // Update all state at once to ensure consistency
           setTokens(data.tokens || {});
           setLayers(data.layers || initialGameState.layers);
           setInitiative(data.initiative || []);
           setInCombat(data.inCombat || false);
           setCurrentTurn(data.currentTurn || 0);
           setPartyLoot(data.partyLoot || initialGameState.partyLoot);
-          setIsConnected(true);
         }
       });
 
       unsubscribeRef.current = unsubscribe;
+      setRoomCode(code);
+      setShowRoomModal(false);
+      setIsConnected(true);
 
     } catch (error) {
       console.error('Connection error:', error);
@@ -2023,7 +2031,7 @@ export default function App() {
       setIsJoining(false);
       setIsLoading(false);
     }
-  }, [playerName]);
+  }, []);
 
   // Add savePlayerData function
   const savePlayerData = async (updatedCharacters) => {
