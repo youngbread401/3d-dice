@@ -1,4 +1,5 @@
 const createExpoWebpackConfigAsync = require('@expo/webpack-config');
+const path = require('path');
 
 module.exports = async function (env, argv) {
   const config = await createExpoWebpackConfigAsync({
@@ -9,7 +10,20 @@ module.exports = async function (env, argv) {
     removeUnusedImports: false,
   }, argv);
   
-  // Customize the config before returning it.
+  // Add rule for handling assets
+  config.module.rules.push({
+    test: /\.(png|jpe?g|gif|ico)$/i,
+    use: [
+      {
+        loader: 'file-loader',
+        options: {
+          name: '[name].[ext]',
+          outputPath: 'assets'
+        }
+      }
+    ]
+  });
+
   config.resolve.fallback = {
     ...config.resolve.fallback,
     "fs": false,
