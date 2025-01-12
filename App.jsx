@@ -2217,15 +2217,34 @@ export default function App() {
                 throw new Error('No character data to save');
               }
 
+              // Create new array with updated character
               const newCharacters = selectedCharacter
                 ? characters.map(char => 
                     char.name === selectedCharacter.name ? updatedCharacter : char
                   )
                 : [...characters, updatedCharacter];
               
+              // Update local state first
               setCharacters(newCharacters);
-              await savePlayerData(newCharacters);
+
+              // Save to Firebase
+              const playerRef = ref(database, `players/${playerName}`);
+              await set(playerRef, {
+                characters: newCharacters,
+                lastUpdate: Date.now()
+              });
+
+              // Also save to room data
+              if (firebaseRef.current) {
+                const roomPlayerRef = ref(database, `rooms/${roomCode}/players/${playerName}`);
+                await set(roomPlayerRef, {
+                  characters: newCharacters,
+                  lastUpdate: Date.now()
+                });
+              }
+
               setShowCharacterSheet(false);
+              
             } catch (error) {
               console.error('Error saving character:', error);
               Alert.alert('Error', 'Failed to save character');
