@@ -1392,27 +1392,33 @@ const RoomModal = memo(({
 ));
 
 const PartyLootModal = memo(({ visible, onClose, partyLoot, onUpdate, playerName }) => {
-  const [editedLoot, setEditedLoot] = useState(partyLoot);
+  const [editedLoot, setEditedLoot] = useState({
+    currency: {
+      CP: 0,
+      SP: 0,
+      EP: 0,
+      GP: 0,
+      PP: 0
+    },
+    items: []
+  });
 
   useEffect(() => {
-    if (visible) {
-      setEditedLoot(partyLoot);
+    if (visible && partyLoot) {
+      setEditedLoot({
+        currency: partyLoot.currency || {
+          CP: 0,
+          SP: 0,
+          EP: 0,
+          GP: 0,
+          PP: 0
+        },
+        items: partyLoot.items || []
+      });
     }
   }, [visible, partyLoot]);
 
-  const addItem = () => {
-    setEditedLoot(prev => ({
-      ...prev,
-      items: [...prev.items, { name: '', quantity: 1, notes: '', addedBy: playerName }]
-    }));
-  };
-
-  const removeItem = (index) => {
-    setEditedLoot(prev => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== index)
-    }));
-  };
+  if (!visible) return null;
 
   return (
     <Modal
@@ -1422,32 +1428,25 @@ const PartyLootModal = memo(({ visible, onClose, partyLoot, onUpdate, playerName
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={additionalStyles.characterSheet}>
-          <TouchableOpacity 
-            style={additionalStyles.closeButton}
-            onPress={onClose}
-          >
-            <Text style={additionalStyles.closeButtonText}>×</Text>
-          </TouchableOpacity>
-
-          <Text style={additionalStyles.sectionTitle}>Party Treasure</Text>
-
-          <GestureScrollView>
+        <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+          <Text style={styles.modalTitle}>Party Loot</Text>
+          
+          <ScrollView>
+            {/* Currency Section */}
             <View style={additionalStyles.lootSection}>
-              {/* Currency */}
-              {CURRENCY.map(currency => (
-                <View key={currency} style={additionalStyles.currencyRow}>
-                  <Text style={additionalStyles.currencyLabel}>{currency}</Text>
+              {CURRENCY.map(type => (
+                <View key={type} style={additionalStyles.currencyRow}>
+                  <Text style={additionalStyles.currencyLabel}>{type}</Text>
                   <TextInput
                     style={additionalStyles.currencyInput}
-                    value={String(editedLoot.currency[currency] || 0)}
+                    value={String(editedLoot.currency[type] || 0)}
                     onChangeText={(text) => {
                       const value = parseInt(text) || 0;
                       setEditedLoot(prev => ({
                         ...prev,
                         currency: {
                           ...prev.currency,
-                          [currency]: value
+                          [type]: value
                         }
                       }));
                     }}
@@ -1458,59 +1457,78 @@ const PartyLootModal = memo(({ visible, onClose, partyLoot, onUpdate, playerName
               ))}
             </View>
 
+            {/* Items Section */}
             <View style={additionalStyles.lootSection}>
               <View style={additionalStyles.lootHeader}>
                 <Text style={additionalStyles.sectionTitle}>Items</Text>
                 <TouchableOpacity
                   style={additionalStyles.addButton}
-                  onPress={addItem}
+                  onPress={() => {
+                    setEditedLoot(prev => ({
+                      ...prev,
+                      items: [...prev.items, { 
+                        id: Date.now().toString(),
+                        name: '',
+                        quantity: 1,
+                        addedBy: playerName 
+                      }]
+                    }));
+                  }}
                 >
                   <Text style={styles.buttonText}>Add Item</Text>
                 </TouchableOpacity>
               </View>
 
               {editedLoot.items.map((item, index) => (
-                <View key={index} style={additionalStyles.itemRow}>
-                  <View style={additionalStyles.itemInfo}>
-                    <TextInput
-                      style={[additionalStyles.itemInput, { flex: 2 }]}
-                      value={item.name}
-                      onChangeText={(text) => {
-                        const newItems = [...editedLoot.items];
-                        newItems[index] = { ...item, name: text };
-                        setEditedLoot(prev => ({ ...prev, items: newItems }));
-                      }}
-                      placeholder="Item name"
-                      placeholderTextColor={THEME.text.light + '80'}
-                    />
-                    <TextInput
-                      style={[additionalStyles.itemInput, { width: 60 }]}
-                      value={String(item.quantity)}
-                      onChangeText={(text) => {
-                        const newItems = [...editedLoot.items];
-                        newItems[index] = { ...item, quantity: parseInt(text) || 1 };
-                        setEditedLoot(prev => ({ ...prev, items: newItems }));
-                      }}
-                      keyboardType="numeric"
-                      placeholder="Qty"
-                      placeholderTextColor={THEME.text.light + '80'}
-                    />
-                    {item.addedBy === playerName && (
-                      <TouchableOpacity
-                        style={additionalStyles.removeButton}
-                        onPress={() => removeItem(index)}
-                      >
-                        <Text style={styles.buttonText}>×</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  <Text style={additionalStyles.addedBy}>Added by: {item.addedBy}</Text>
+                <View key={item.id || index} style={additionalStyles.itemRow}>
+                  <TextInput
+                    style={[additionalStyles.itemInput, { flex: 2 }]}
+                    value={item.name}
+                    onChangeText={(text) => {
+                      const newItems = [...editedLoot.items];
+                      newItems[index] = { ...item, name: text };
+                      setEditedLoot(prev => ({ ...prev, items: newItems }));
+                    }}
+                    placeholder="Item name"
+                    placeholderTextColor={THEME.text.light + '80'}
+                  />
+                  <TextInput
+                    style={[additionalStyles.itemInput, { width: 60 }]}
+                    value={String(item.quantity)}
+                    onChangeText={(text) => {
+                      const newItems = [...editedLoot.items];
+                      newItems[index] = { ...item, quantity: parseInt(text) || 1 };
+                      setEditedLoot(prev => ({ ...prev, items: newItems }));
+                    }}
+                    keyboardType="numeric"
+                    placeholder="Qty"
+                    placeholderTextColor={THEME.text.light + '80'}
+                  />
+                  <TouchableOpacity
+                    style={additionalStyles.removeButton}
+                    onPress={() => {
+                      setEditedLoot(prev => ({
+                        ...prev,
+                        items: prev.items.filter((_, i) => i !== index)
+                      }));
+                    }}
+                  >
+                    <Text style={styles.buttonText}>×</Text>
+                  </TouchableOpacity>
                 </View>
               ))}
             </View>
+          </ScrollView>
 
+          <View style={styles.buttonRow}>
             <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: THEME.success }]}
+              style={[styles.button, styles.closeButton]}
+              onPress={onClose}
+            >
+              <Text style={styles.buttonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: THEME.success }]}
               onPress={() => {
                 onUpdate(editedLoot);
                 onClose();
@@ -1518,7 +1536,7 @@ const PartyLootModal = memo(({ visible, onClose, partyLoot, onUpdate, playerName
             >
               <Text style={styles.buttonText}>Save Changes</Text>
             </TouchableOpacity>
-          </GestureScrollView>
+          </View>
         </View>
       </View>
     </Modal>
